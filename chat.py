@@ -16,7 +16,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import WebDriverException as WebDriverException
 
 config = {
-    'chromedriver_path': "{0}/bin/chromedriver".format(os.environ['HOME']),
+    'chromedriver_path': "/usr/local/bin/chromedriver".format(os.environ['HOME']),
     'get_msg_interval': 5,  # Time (seconds). Recommended value: 5
     'colors': True,  # True/False. True prints colorful msgs in console
     'ww_url': "https://web.whatsapp.com/"
@@ -72,7 +72,7 @@ try:
             chooseReceiver(driver)
 
             # getting true name of contact/group
-            last_thread_name = driver.find_element(By.XPATH, '//*[@id="main"]/header//div[contains(@class, "chat-main")]').text
+            last_thread_name = driver.find_element(By.XPATH, '//*[@id="main"]/header//span[contains(@dir, "auto")]').text
 
             # start background thread
             incoming_thread = threading.Thread(target=startGetMsg, args=(driver,))
@@ -101,7 +101,7 @@ try:
         Type 'msg' in 'driver' and press RETURN
         """
         # select correct input box to type msg
-        input_box = driver.find_element(By.XPATH, '//*[@id="main"]//footer//div[contains(@class, "input")]')
+        input_box = driver.find_element(By.XPATH, '//*[@id="main"]//footer//div[contains(@class, "selectable-text")]')
         # input_box.clear()
         input_box.click()
 
@@ -129,7 +129,7 @@ try:
         curr_thread_name = printThreadName(driver)
 
         # get incoming msgs
-        all_msgs_text_only = driver.find_elements(By.XPATH, '//*[@id="main"]//div[contains(@class, "message-text")]')
+        all_msgs_text_only = driver.find_elements(By.XPATH, '//*[@id="main"]//div[contains(@class, "msg")]//span[contains(@dir, "ltr")]')
 
         # check if last msg was outgoing.
         try:
@@ -179,7 +179,7 @@ try:
 
     def printThreadName(driver):
         global last_thread_name
-        curr_thread_name = driver.find_element(By.XPATH, '//*[@id="main"]/header//div[contains(@class, "chat-main")]').text
+        curr_thread_name = driver.find_element(By.XPATH, '//*[@id="main"]/header//span[contains(@dir, "auto")]').text
         if curr_thread_name != last_thread_name:
             last_thread_name = curr_thread_name
             print(decorateMsg("\n\tSending msgs to:", bcolors.OKBLUE), curr_thread_name)
