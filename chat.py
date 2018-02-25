@@ -17,7 +17,7 @@ from selenium.common.exceptions import WebDriverException as WebDriverException
 from selenium.common.exceptions import NoSuchElementException
 
 config = {
-    'chromedriver_path': "/usr/local/bin/chromedriver".format(os.environ['HOME']),
+    'chromedriver_path': "{0}/bin/chromedriver".format(os.environ['HOME']),
     'get_msg_interval': 5,  # Time (seconds). Recommended value: 5
     'colors': True,  # True/False. True prints colorful msgs in console
     'ww_url': "https://web.whatsapp.com/"
