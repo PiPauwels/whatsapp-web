@@ -14,18 +14,18 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import WebDriverException as WebDriverException
+from selenium.common.exceptions import NoSuchElementException
 
 config = {
-    'chromedriver_path': "{0}/bin/chromedriver".format(os.environ['HOME']),
+    'chromedriver_path': "/usr/local/bin/chromedriver".format(os.environ['HOME']),
     'get_msg_interval': 5,  # Time (seconds). Recommended value: 5
     'colors': True,  # True/False. True prints colorful msgs in console
     'ww_url': "https://web.whatsapp.com/"
 }
 
 incoming_scheduler = sched.scheduler(time.time, time.sleep)
-last_printed_msg_id = 0
 last_thread_name = ''
-
+ult_msg = None # storing final incoming messafe data
 
 # colors in console
 class bcolors:
@@ -110,7 +110,6 @@ try:
         action.send_keys(Keys.RETURN)
         action.perform()
 
-
     def startGetMsg(driver):
         """
         Start schdeuler that gets incoming msgs every get_msg_interval seconds
@@ -118,50 +117,53 @@ try:
         incoming_scheduler.enter(config['get_msg_interval'], 1, getMsg, (driver, incoming_scheduler))
         incoming_scheduler.run()
 
-
     def getMsg(driver, scheduler):
         """
         Get incoming msgs from the driver repeatedly
         """
         global last_printed_msg_id
-
+        global ult_msg
         # print conversation name
         curr_thread_name = printThreadName(driver)
 
         # get incoming msgs
         all_msgs_text_only = driver.find_elements(By.XPATH, '//*[@id="main"]//div[contains(@class, "msg")]//span[contains(@dir, "ltr")]')
 
-        # check if last msg was outgoing.
+        # check if msg's exist
         try:
-            last_msg = all_msgs_text_only[-1]
-            last_msg_id = last_msg.get_attribute('data-id')
-        except IndexError:
-            last_msg_id = None
-        if last_msg_id:
-            # if last msg was incoming
-            if last_msg_id[:5] == 'false':
-                # if last_msg is already printed
-                if last_printed_msg_id == last_msg_id:
+            first_msg = all_msgs_text_only[0]
+        except IndexError: # thrown if there are no messages
+            pass
+        if first_msg: # if one or more messages exist
+            is_first_incoming_msg = True # boolean flag used in for loop below ; if True: init msg_vector with msg, if False: append msg to msg_vector
+            for i in range(0, len(all_msgs_text_only)):
+                if isOutgoingMessage(all_msgs_text_only[i]):
                     pass
-                # else print new msgs
                 else:
-                    print_from = len(all_msgs_text_only)
-                    # loop from last msg to first
-                    for i, curr_msg in reversed(list(enumerate(all_msgs_text_only))):
-                        # if curr_msg is outgoing OR if last_printed_msg_id is found
-                        curr_msg_id = curr_msg.get_attribute('data-id')
-                        if curr_msg_id[:4] == 'true' or curr_msg_id == last_printed_msg_id:
-                            # break
-                            print_from = i
+                    # build array of initial messages
+                    msg_text = all_msgs_text_only[i].text
+                    msg_sender = all_msgs_text_only[i].find_element_by_xpath('../..').get_attribute('data-pre-plain-text')
+                    msg_data = [msg_sender, msg_text]
+                    if is_first_incoming_msg:
+                        msg_vector = [msg_data]
+                        is_first_incoming_msg = False
+                    else:
+                        msg_vector.append(msg_data)
+
+            if ult_msg: # final incoming message set in previous iteration ; so initial messages have already been fetched
+                if ult_msg[0] == msg_vector[-1][0] and ult_msg[1] == msg_vector[-1][1]: # compare last fetched msg to last msg of previous iteration
+                    pass # no new messages received
+                else:
+                    for i in range(len(msg_vector)-2, 0, -1):
+                        if ult_msg[0] == msg_vector[i][0] and ult_msg[1] == msg_vector[i][1]:
                             break
-                    # Print all msgs from last printed msg till newest msg
-                    for i in range(print_from + 1, len(all_msgs_text_only)):
-                        last_printed_msg_id = all_msgs_text_only[i].get_attribute('data-id')
-                        print(decorateMsg(curr_thread_name + ": " + all_msgs_text_only[i].text, bcolors.OKGREEN))
+                    for j in range(i+1, len(msg_vector)):
+                        print(decorateMsg(msg_vector[j][0] + " " + msg_vector[j][1], bcolors.OKGREEN)) # print new messages
+
+            ult_msg = [msg_vector[-1][0], msg_vector[-1][1]]
 
         # add the task to the scheduler again
         incoming_scheduler.enter(config['get_msg_interval'], 1, getMsg, (driver, scheduler,))
-
 
     def decorateMsg(msg, color=None):
         """
@@ -176,6 +178,18 @@ try:
 
         return msg_string
 
+    def isOutgoingMessage (message):  # message = span containing the text message
+        ggf = message.find_element_by_xpath('../../..') # find the span's "great-grandfather"
+        try:
+            # get the status icon
+            ggf.find_element_by_xpath('..//div[contains(@class, "status-icon")]')
+            # if no exception was thrown: status icon exists
+            # => message is outgoing
+            return True
+        except NoSuchElementException:
+            # Exception was thrown: there is no status icon
+            # => message is incoming
+            return False
 
     def printThreadName(driver):
         global last_thread_name
@@ -184,7 +198,6 @@ try:
             last_thread_name = curr_thread_name
             print(decorateMsg("\n\tSending msgs to:", bcolors.OKBLUE), curr_thread_name)
         return curr_thread_name
-
 
     def chooseReceiver(driver, receiver=None):
         # search name of friend/group
